@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Malviz Console</title>
+    <!-- Use Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- vis-network -->
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="sidebar">
+        <div class="logo">
+            <div class="icon"></i>🛡️</div>
+            <h2>Mal<span class="highlight">viz</span></h2>
+        </div>
+        <nav>
+            <ul>
+                <li class="active"><a href="#" onclick="showSection('dashboard')">Dashboard</a></li>
+                <li><a href="#" onclick="showSection('network')">Network Analyzer</a></li>
+                <li><a href="#" onclick="showSection('simulation')">Process Simulation</a></li>
+                <li><a href="#" onclick="showSection('history')">Threat History</a></li>
+            </ul>
+        </nav>
+    </div>
+
+    <div class="main-content">
+        <header>
+            <div class="header-left">
+                <h1 id="page-title">Real-Time Threat Dashboard</h1>
+                <span class="status-indicator"><span class="dot pulse"></span> Monitoring Active</span>
+            </div>
+            <div class="header-right">
+                <div class="stat-box">
+                    <span class="label">Total Processes</span>
+                    <span class="value" id="top-total-procs">0</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Dashboard Section -->
+        <section id="dashboard" class="view-section active">
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="card-header">
+                        <h3>CPU Consumption</h3>
+                        <span class="value accent-blue" id="cpu-value">0%</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="cpuChart"></canvas>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="card-header">
+                        <h3>Memory Usage</h3>
+                        <span class="value accent-purple" id="mem-value">0%</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="memChart"></canvas>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="card-header">
+                        <h3>Disk Allocation (C:\)</h3>
+                        <span class="value accent-green" id="disk-value">0%</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="diskChart"></canvas>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="card-header">
+                        <h3>Network (MB/s)</h3>
+                        <span class="value accent-blue" id="net-value">0</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="netChart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="metric-card" style="grid-column: span 2; display: flex; flex-direction: column;">
+                    <div class="card-header">
+                        <h3>System Threat Level</h3>
+                        <span class="value accent-red" id="threat-score">Normal</span>
+                    </div>
+                    <div style="flex-grow: 1; display:flex; align-items:center; justify-content:center;">
+                        <canvas id="threatGauge" style="max-height: 120px;"></canvas>
+                    </div>
+                </div>
+
+                <div class="metric-card" style="grid-column: span 2; display: flex; flex-direction: column;">
+                    <div class="card-header">
+                        <h3>Top Memory Processes</h3>
+                    </div>
+                    <div class="scroll-box" style="flex-grow: 1; padding: 10px;">
+                        <ul id="top-mem-list" style="list-style: none; padding: 0; margin: 0; font-size: 0.9em; font-family: var(--font-mono); color:#c7d0d9;">
+                            <li>Loading...</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="system-info-panel" style="background: transparent; border: none; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <!-- Privilege Escalation Widget -->
+                <div class="metric-card" style="display: flex; flex-direction: column; background: rgba(220, 38, 38, 0.05);">
+                    <div class="card-header" style="border-bottom: 1px solid rgba(220, 38, 38, 0.3);">
+                        <h3 style="color: var(--accent-red);">🚨 Recent Privilege Escalation Attempts</h3>
+                    </div>
+                    <div class="scroll-box" style="flex-grow: 1; padding: 10px; max-height: 200px; overflow-y: auto; overflow-x: hidden;">
+                        <ul id="escalations-list" style="list-style: none; padding: 0; margin: 0; font-size: 0.85em; color:#c7d0d9;">
+                            <li style="text-align:center; padding-top:40px; color:#6b7280;">No escalation attempts detected.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Active Network Connections Widget -->
+                <div class="metric-card" style="display: flex; flex-direction: column;">
+                    <div class="card-header" style="border-bottom: 1px solid var(--accent-blue);">
+                        <h3 style="color: var(--accent-blue);">🌐 Active Ext. Connections</h3>
+                    </div>
+                    <div class="scroll-box" style="flex-grow: 1; padding: 10px; max-height: 200px; overflow-y: auto;">
+                        <ul id="active-conn-list" style="list-style: none; padding: 0; margin: 0; font-size: 0.85em; font-family: var(--font-mono); color:#c7d0d9;">
+                            <li style="text-align:center; padding-top:40px; color:#6b7280;">Listening for packets...</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+
+            <div class="table-container">
+                <div class="table-header">
+                    <h3>Live Process Monitor</h3>
+                    <input type="text" id="proc-search" placeholder="Search PID or Name..." onkeyup="filterTable()">
+                </div>
+                <div class="table-wrapper">
+                    <table id="process-table">
+                        <thead>
+                            <tr>
+                                <th>PID</th>
+                                <th>Name</th>
+                                <th>User</th>
+                                <th>Path</th>
+                                <th>Threat Score</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="process-tbody">
+                            <!-- Rows injected via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- History Section -->
+        <section id="history" class="view-section">
+            <div class="table-container">
+                <div class="table-header">
+                    <h3>Historic Threat Log</h3>
+                    <button class="btn" onclick="loadHistory()">Refresh Log</button>
+                </div>
+                <div class="table-wrapper">
+                    <table id="history-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>PID</th>
+                                <th>Name</th>
+                                <th>Severity</th>
+                                <th>Context / Detection</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-tbody">
+                            <!-- Rows injected via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Network Analyzer Section -->
+        <section id="network" class="view-section">
+            <div class="table-container">
+                <div class="table-header">
+                    <h3>packet capture</h3>
+                    <div>
+                        <select id="net-protocol-filter" style="background-color: #0b0c10; border: 1px solid var(--panel-border); color: var(--text-main); padding: 5px; border-radius: 4px; margin-right: 15px;" onchange="filterNetworkTable()">
+                            <option value="ALL">All Protocols</option>
+                            <option value="TCP">TCP</option>
+                            <option value="UDP">UDP</option>
+                            <option value="DNS">DNS</option>
+                        </select>
+                        <button class="btn" onclick="loadNetwork()">Refresh Capture</button>
+                    </div>
+                </div>
+                <div class="table-wrapper" style="max-height: 400px; overflow-y: auto;">
+                    <table id="network-table" class="wireshark-table">
+                        <thead>
+                            <tr>
+                                <th>No.</th>
+                                <th>Time</th>
+                                <th>Source</th>
+                                <th>Destination</th>
+                                <th>Protocol</th>
+                                <th>Length</th>
+                                <th>Info</th>
+                            </tr>
+                        </thead>
+                        <tbody id="network-tbody">
+                            <!-- Rows injected via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div id="packet-details" style="display:none; margin-top:20px; border: 1px solid var(--panel-border); background: rgba(0,0,0,0.2); padding: 15px; border-radius: 6px;">
+                <h4 style="margin-bottom:15px; border-bottom: 1px solid var(--panel-border); padding-bottom: 8px;">Packet Analysis: Frame <span id="pd-no" style="color:var(--accent-blue);"></span></h4>
+                <div style="display:flex; gap: 20px;">
+                    <div style="flex: 1;">
+                        <strong style="font-size: 0.9em; color:#8e99a8; margin-bottom:10px; display:block;">Frame Details</strong>
+                        <ul style="list-style:none; padding:10px; margin:0; font-size: 0.9em; color:#eaeaea; font-family: var(--font-mono); background:#0b0c10; border:1px solid #1f2328; border-radius:4px; height: 180px;">
+                            <li style="margin-bottom:6px;"><strong>Time:</strong> <span id="pd-time"></span></li>
+                            <li style="margin-bottom:6px;"><strong>Source:</strong> <span id="pd-src"></span></li>
+                            <li style="margin-bottom:6px;"><strong>Destination:</strong> <span id="pd-dst"></span></li>
+                            <li style="margin-bottom:6px;"><strong>Protocol:</strong> <span id="pd-proto" class="badge bg-normal"></span></li>
+                            <li style="margin-bottom:6px;"><strong>Length:</strong> <span id="pd-len"></span> bytes</li>
+                            <li style="margin-bottom:6px; margin-top: 15px;"><strong>Info:</strong> <br/><span id="pd-info" style="color:var(--accent-orange);"></span></li>
+                        </ul>
+                    </div>
+                    <div style="flex: 2;">
+                        <strong style="font-size: 0.9em; color:#8e99a8; margin-bottom:10px; display:block;">Payload Hex Dump (Max 256 bytes)</strong>
+                        <div class="code-font" id="pd-hex" style="background:#0b0c10; border:1px solid #1f2328; padding:10px; font-size:0.85em; overflow:auto; height:180px; border-radius:4px;"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Simulation Section -->
+        <section id="simulation" class="view-section">
+            <div class="simulation-header">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <h2>Advanced Process Inspector</h2>
+                    <div>
+                        <input type="text" id="manual-sim-pid" placeholder="Enter PID or Name..." style="background-color: #0b0c10; border: 1px solid var(--panel-border); color: #fff; padding: 6px 12px; border-radius: 4px; width: 160px;" />
+                        <button class="btn btn-small" onclick="inspectManual()">Inspect</button>
+                    </div>
+                </div>
+                <div id="sim-status">Select a process from Dashboard or Threat History to inspect...</div>
+            </div>
+            
+            <div id="sim-container" style="display: none;">
+                <div class="sim-metadata-bar" style="display: flex; gap: 15px; align-items: center;">
+                    <div class="info-item"><strong>PID:</strong> <span id="s-pid"></span></div>
+                    <div class="info-item"><strong>Name:</strong> <span id="s-name"></span></div>
+                    <div class="info-item"><strong>Threat:</strong> <span id="s-threat" class="badge"></span></div>
+                    <div style="display:flex; gap: 10px; margin-left: 10px;">
+                        <button class="btn btn-small bg-warning" onclick="performAction('suspend')">Suspend</button>
+                        <button class="btn btn-small bg-normal" onclick="performAction('resume')">Resume</button>
+                        <button class="btn btn-small bg-critical" onclick="performAction('kill')">Kill</button>
+                        <span id="action-status" style="font-size: 0.85em; margin-left: 10px; color: var(--accent-green);"></span>
+                    </div>
+                    <div style="margin-left: auto; display: flex; gap: 10px;">
+                        <button class="btn btn-small" onclick="downloadDump()" style="background-color: var(--accent-purple);">Dump (.dmp)</button>
+                        <button class="btn btn-small" onclick="downloadReport()" style="background-color: var(--accent-blue);">Download Report</button>
+                    </div>
+                </div>
+
+                <div id="s-cmdline-container" style="background: rgba(0,0,0,0.3); border: 1px solid var(--panel-border); padding: 10px; border-radius: 4px; margin-bottom: 15px;">
+                    <strong style="color: var(--accent-orange); font-size: 0.9em; margin-bottom: 5px; display: block;">Execution Command Line:</strong>
+                    <div id="s-cmdline" class="code-font" style="word-break: break-all; font-size: 0.85em; color: #a5b4fc; max-height: 60px; overflow-y: auto;"></div>
+                    <button id="s-cmdline-decode-btn" class="btn btn-small" style="margin-top: 8px; display: none; background: #6b7280; padding: 2px 8px; font-size: 0.8em;" onclick="decodeCmdline()">Decode Base64</button>
+                </div>
+                
+                <div id="s-reasons-container" class="error-block" style="display:none; margin-bottom: 20px; border-radius: 6px;">
+                    <h4 style="margin-bottom: 10px; color: var(--accent-red);">🚨 Threat Detection Report & Context</h4>
+                    <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 8px;">The Malviz heuristic engine natively matched the following anomaly signatures leading to this severity rank:</p>
+                    <ul id="s-reasons-list" style="margin-left: 20px; font-family: var(--font-mono); font-size: 0.9em; color:#eaeaea;"></ul>
+                </div>
+                
+                <div class="sim-split-pane">
+                    <div class="sim-pane syscall-pane">
+                        <div class="pane-header">Syscall Trace <span class="spinner pulse"></span></div>
+                        <div class="terminal-view scroll-box code-font" id="syscall-log">
+                        </div>
+                    </div>
+                    <div class="sim-pane network-pane">
+                        <div class="pane-header">Process Network Traffic</div>
+                        <table class="sim-table wireshark-table">
+                            <thead>
+                                <tr><th>Protocol</th><th>Local</th><th>Remote</th><th>State</th></tr>
+                            </thead>
+                            <tbody id="sim-network-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="sim-pane memory-pane" style="margin-top: 20px;">
+                    <div class="pane-header">Deep Memory & PE Analysis <button class="btn btn-small" onclick="fetchDeepAnalysis(current_inspect_pid)" style="float:right;">Scan Memory</button></div>
+                    <div id="deep-loading" style="display:none; padding: 10px;">Analyzing process memory and PE headers...</div>
+                    <div id="deep-error" class="error-block" style="display:none; margin: 10px;"></div>
+                    <div id="deep-results" style="display:none; padding: 10px;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <p><strong>Actual RAM Usage:</strong> <span id="m-ram"></span> MB</p>
+                            <p><strong>SHA-256:</strong> <span id="m-hash" class="code-font" style="color:var(--accent-orange);"></span> <button class="btn btn-small" style="padding:2px 8px; font-size:0.8em; margin-left: 10px;" onclick="openVT()">VirusTotal Research</button></p>
+                        </div>
+                        
+                        <div style="margin-top: 15px; display:flex; gap: 20px;">
+                            <div style="flex:1;">
+                                <h4 style="color:var(--accent-red); margin-bottom: 5px;">Security Tokens & Privileges</h4>
+                                <div class="scroll-box code-font" style="height:150px; font-size: 0.9em;" id="m-tokens"></div>
+                            </div>
+                            <div style="flex:1;">
+                                <h4 style="margin-bottom: 5px;">Open Handles (Files/Sockets/DLLs)</h4>
+                                <div class="scroll-box code-font" style="height:150px; font-size: 0.9em;" id="m-handles"></div>
+                            </div>
+                        </div>
+                        
+                        <div style="display:flex; gap:20px; font-family: var(--font-mono); font-size: 0.85em; margin-top:10px;">
+                            <div style="flex: 1;">
+                                <h4>Exported Functions / APIs</h4>
+                                <div class="scroll-box code-font" style="height:200px;" id="m-exports"></div>
+                            </div>
+                            <div style="flex: 1;">
+                                <h4>Imported APIs</h4>
+                                <div class="scroll-box code-font" style="height:200px;" id="m-imports"></div>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top: 15px;">
+                            <h4 style="display:flex; justify-content:space-between;">Forensic Strings <button class="btn btn-small bg-normal" onclick="fetchStrings()">Extract Strings</button></h4>
+                            <div class="scroll-box code-font" style="height:250px; display:none;" id="m-strings"></div>
+                        </div>
+                        
+                        <div style="margin-top: 15px;">
+                            <h4>PE Binary Analysis</h4>
+                            <div id="m-peheaders"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Details Modal -->
+    <div id="details-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <div class="modal-header">
+                <h2>Process Analysis</h2>
+                <span id="modal-severity" class="badge"></span>
+            </div>
+            <div class="modal-body">
+                <div class="modal-tabs">
+                    <button class="tab-btn active" onclick="switchModalTab('summary')">Summary</button>
+                    <button class="tab-btn" onclick="switchModalTab('deep')">RAM/Exports</button>
+                    <button class="tab-btn" onclick="switchModalTab('imports')">Imports & APIs</button>
+                </div>
+                
+                <div id="tab-summary" class="tab-content active">
+                    <div class="info-group">
+                        <label>Process Info</label>
+                        <p><strong>Name:</strong> <span id="m-name"></span> (PID: <span id="m-pid"></span>)</p>
+                        <p><strong>User:</strong> <span id="m-user"></span></p>
+                        <p><strong>Path:</strong> <span id="m-path" class="code-font"></span></p>
+                    </div>
+                    <div class="info-group">
+                        <label>Ancestry</label>
+                        <p><strong>Parent Name:</strong> <span id="m-pname"></span> (PID: <span id="m-ppid"></span>)</p>
+                    </div>
+                    <div class="info-group error-block">
+                        <label>Reason for Suspicion</label>
+                        <ul id="m-reasons"></ul>
+                    </div>
+                    <div class="info-group warning-block" id="m-network-block">
+                        <label>Network Beacons</label>
+                        <ul id="m-network"></ul>
+                    </div>
+                    <div style="margin-top: 20px;">
+                        <button class="btn bg-critical" onclick="initiateSimulation()">Simulate Behavior (Node Graph)</button>
+                    </div>
+                </div>
+                
+                <div id="tab-deep" class="tab-content" style="display:none;">
+                    <div class="info-group">
+                        <label>Deep Analysis Results</label>
+                        <div id="deep-loading" style="display:none;">Analyzing process memory and PE headers...</div>
+                        <div id="deep-error" class="error-block" style="display:none;"></div>
+                        <div id="deep-results" style="display:none;">
+                            <p><strong>Actual RAM Usage:</strong> <span id="m-ram"></span> MB</p>
+                            
+                            <h4>Exported Functions</h4>
+                            <div class="scroll-box code-font" id="m-exports"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="tab-imports" class="tab-content" style="display:none;">
+                    <div class="info-group">
+                        <label>Imports & API Calls</label>
+                        <div id="imports-loading" style="display:none;">Analyzing imported APIs...</div>
+                        <div id="imports-results" style="display:none;">
+                            <h4>History of API Calls (Imports)</h4>
+                            <div class="scroll-box code-font" style="height: 350px;" id="m-imports"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
