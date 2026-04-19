@@ -7,9 +7,7 @@ echo [*] Spoofing ping.exe as PrintSpoofer.exe...
 copy /Y C:\Windows\System32\ping.exe "%TEST_DIR%\PrintSpoofer.exe" >nul
 
 echo [*] Starting fake PrintSpoofer.exe...
-start "" "%TEST_DIR%\PrintSpoofer.exe" localhost -n 25 >nul
+start "" "%TEST_DIR%\PrintSpoofer.exe" localhost -t >nul
 
-echo [*] Payload deployed. It will run for ~25 seconds.
+echo [*] Payload deployed. It will run indefinitely until killed via UI.
 echo [*] See Malviz dashboard for alerts...
-timeout /t 22 >nul
-del /f /q "%TEST_DIR%\PrintSpoofer.exe" 2>nul

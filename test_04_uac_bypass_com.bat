@@ -8,9 +8,7 @@ echo [*] Staging cmd.exe as fodhelper.exe...
 copy /Y C:\Windows\System32\cmd.exe "%TEST_DIR%\fodhelper.exe" >nul
 
 echo [*] Launching fake fodhelper.exe which will spawn a child cmd.exe...
-start "" "%TEST_DIR%\fodhelper.exe" /c "cmd.exe /c ""ping localhost -n 25 >nul"""
+start "" "%TEST_DIR%\fodhelper.exe" /c "cmd.exe /c ""ping localhost -t >nul"""
 
-echo [*] Payload deployed. Process will stay alive for ~25 seconds.
+echo [*] Payload deployed. Process will stay alive indefinitely until killed via UI.
 echo [*] Check Malviz dashboard!
-timeout /t 22 >nul
-del /f /q "%TEST_DIR%\fodhelper.exe" 2>nul

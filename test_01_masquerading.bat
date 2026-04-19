@@ -7,9 +7,7 @@ echo [*] Copying ping.exe to spoof svchost.exe...
 copy /Y C:\Windows\System32\ping.exe "%TEST_DIR%\svchost.exe" >nul
 
 echo [*] Launching spoofed svchost.exe from %TEST_DIR% ...
-start "" "%TEST_DIR%\svchost.exe" localhost -n 25 >nul
+start "" "%TEST_DIR%\svchost.exe" localhost -t >nul
 
-echo [*] Payload deployed. It will run for ~25 seconds.
+echo [*] Payload deployed. It will run indefinitely until killed via UI.
 echo [*] See Malviz dashboard for alerts...
-timeout /t 22 >nul
-del /f /q "%TEST_DIR%\svchost.exe" 2>nul

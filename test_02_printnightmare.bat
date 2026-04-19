@@ -7,9 +7,7 @@ echo [*] Staging cmd.exe as spoolsv.exe...
 copy /Y C:\Windows\System32\cmd.exe "%TEST_DIR%\spoolsv.exe" >nul
 
 echo [*] Launching fake spoolsv.exe and forcing it to spawn powershell...
-start "" "%TEST_DIR%\spoolsv.exe" /c "powershell.exe -WindowStyle Hidden -Command ""Start-Sleep -Seconds 25"""
+start "" "%TEST_DIR%\spoolsv.exe" /c "powershell.exe -WindowStyle Hidden -Command ""while($true){Start-Sleep -Seconds 1}"""
 
-echo [*] Payloads launched! They will run for ~25 seconds.
+echo [*] Payloads launched! They will run indefinitely until killed via UI.
 echo [*] See Malviz dashboard for Critical PrintNightmare alert...
-timeout /t 22 >nul
-del /f /q "%TEST_DIR%\spoolsv.exe" 2>nul
