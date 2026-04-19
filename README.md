@@ -24,6 +24,7 @@ It combines **process monitoring, syscall tracing, network analysis, and behavio
 * Packet capture (DNS, TCP, UDP)
 * Source → Destination tracking
 * Payload hex dump inspection
+* Real-time dashboard routing to external Network IP addresses
 * Detection of suspicious outbound connections
 
 ### 🧬 Deep Process Inspection
@@ -45,9 +46,11 @@ It combines **process monitoring, syscall tracing, network analysis, and behavio
 * Suspicious execution alerts
 * MITRE ATT&CK mapping
 
-### 📜 Threat History
+### 📜 Threat History & Alerting
 
-* Logs all detected threats
+* Logs all detected threats into SQLite
+* Retains a persistent 24-hour Privilege Escalation tracker
+* Native background Desktop Notifications via Web Push APIs
 * Severity levels (Warning / Critical)
 * Context-aware detection messages
 * Deep inspection support for each event
@@ -59,6 +62,8 @@ It combines **process monitoring, syscall tracing, network analysis, and behavio
   * Privilege escalation
   * Suspicious shell execution
   * Masquerading attacks
+  * UAC Bypasses & Hijacking
+* Scripts run infinitely to allow manual kill testing
 * Helps demonstrate detection capabilities
 
 ---
@@ -94,7 +99,8 @@ backend/
 ├── threat_engine.py       # Detection logic
 ├── database.py            # Data handling
 ├── test_features.py       # Testing utilities
-├── simulate_*.bat         # Attack simulation scripts
+├── test_*.bat             # Attack simulation scripts
+├── run_all_tests.bat      # Master simulation orchestrator
 ├── static/               # Frontend assets
 └── .gitignore
 ```
@@ -143,7 +149,6 @@ http://localhost:8000
 * 🔗 Attack chain correlation engine
 * 🧠 Advanced behavioral scoring (AI/ML)
 * 🌍 Geo-IP mapping for network connections
-* ⚡ Real-time alert system (notifications)
 * 🧬 Memory injection detection
 
 ---

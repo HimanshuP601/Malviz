@@ -1,0 +1,73 @@
+% Chapter 6
+
+\chapter{Conclusions and Practical Implications}\doublespacing
+
+\label{Chapter6}
+
+\lhead{Chapter VI. \emph{Conclusions and Practical Implications}}
+
+\section{Summary}
+
+This dissertation presented the design, development, and evaluation of \textbf{Malviz}, a real-time Windows threat monitoring and analysis platform. The system was built to bridge the gap between raw system telemetry and actionable security insights by combining process monitoring, behavioral threat detection, deep process inspection, network analysis, and attack simulation into a unified, interactive dashboard.
+
+The work was motivated by the limitations of traditional signature-based detection tools and the increasing sophistication of modern attacks that exploit legitimate system binaries, abuse parent-child process relationships, and leverage direct system call execution to evade detection. Malviz addresses these challenges through behavioral heuristics grounded in the MITRE ATT\&CK framework and a modular architecture that supports continuous extension.
+
+\section{Study Findings}
+
+The evaluation of Malviz produced the following key findings:
+
+\begin{itemize}
+    \item All seven simulated attack scenarios -- spanning masquerading, obfuscated PowerShell injections, UAC bypass sequences, PrintNightmare spawning, and SYSTEM shell schedules -- were correctly detected and mapped.
+
+    \item The deep process inspector successfully validated masquerade attacks by cross-referencing SHA-256 hashes, PE import tables, and execution paths, providing multi-layered forensic evidence for each detection.
+
+    \item Token integrity inspection confirmed SYSTEM-level privilege escalation in the Task Scheduler simulation, identifying elevated privileges including \texttt{SeDebugPrivilege} and \texttt{SeImpersonatePrivilege}.
+
+    \item The system maintained a runtime overhead below 1\% additional CPU usage and approximately 35 MB of additional memory, confirming that continuous background monitoring is practical.
+
+    \item The WebSocket-based real-time streaming architecture delivered threat updates with latency under two seconds, enabling near-instantaneous alert visibility.
+\end{itemize}
+
+\section{Research Contributions}
+
+This project makes the following contributions to the field of applied cybersecurity:
+
+\begin{itemize}
+    \item \textbf{Integrated Threat Monitoring Platform} -- Malviz combines process monitoring, behavioral detection, PE analysis, network inspection, and threat logging into a single lightweight tool, reducing the need to correlate data across multiple separate utilities.
+
+    \item \textbf{MITRE ATT\&CK Aligned Detection Rules} -- The threat engine implements detection logic directly mapped to known attack techniques including masquerading (T1036), process injection patterns, LOLBin abuse (T1218), and privilege escalation via scheduled tasks (T1053), making detections interpretable within a standard threat framework.
+
+    \item \textbf{Simulation-Driven Validation} -- The suite of batch-based simulation testing scripts provides a reproducible and safe method for demonstrating EDR-like capabilities. Because these processes now loop infinitely they uniquely support testing manual termination APIs natively embedded in the dashboard without requiring actual malware.
+
+    \item \textbf{Accessible Security Education Tool} -- The interactive dashboard with visual threat indicators, hex dumps, PE header views, and a threat history log makes low-level Windows security concepts accessible to students and practitioners without requiring deep familiarity with command-line forensic tools.
+\end{itemize}
+
+\section{Practical Implications}
+
+Malviz has several practical applications in cybersecurity education and research:
+
+\begin{itemize}
+    \item \textbf{Security Education} -- The platform serves as a hands-on learning tool for understanding Windows internals, process behavior, privilege escalation techniques, and threat detection logic. Students can observe in real time how simulated attacks are detected and examine the forensic evidence.
+
+    \item \textbf{Red Team Training} -- Security professionals can use the simulation scripts to develop an intuition for which behaviors trigger detection and refine their understanding of evasion techniques.
+
+    \item \textbf{Lightweight SOC Complement} -- In resource-constrained environments, Malviz can serve as a lightweight endpoint monitoring tool complementing traditional SIEM deployments by focusing on process-level behavioral anomalies.
+
+    \item \textbf{Research Baseline} -- The modular architecture provides a clean foundation for researchers to extend the platform with machine learning-based anomaly scoring, memory injection detection, or attack chain correlation.
+\end{itemize}
+
+\section{Study Limitations and Scope for Future Work}
+
+While Malviz successfully demonstrates its core objectives, several limitations and opportunities for improvement remain:
+
+\begin{itemize}
+    \item \textbf{Windows-Only} -- The current implementation depends on Windows-specific APIs (\texttt{win32security}, \texttt{DbgHelp}) and process structures. Porting to Linux or macOS would require significant rework of the inspector and token modules.
+
+    \item \textbf{Rule-Based Detection} -- The threat engine relies entirely on handcrafted heuristic rules. Advanced malware that does not match known patterns may evade detection. Integrating a machine learning-based behavioral scoring model would significantly improve coverage against novel threats.
+
+    \item \textbf{No Kernel-Level Visibility} -- Malviz operates entirely in user mode. Kernel rootkits or processes that hide themselves from the Windows process list would be invisible to \texttt{psutil}. Kernel driver integration or ETW (Event Tracing for Windows) could address this gap.
+
+    \item \textbf{Future Enhancements} -- Planned improvements include attack chain correlation to trace multi-step attack sequences, advanced Geo-IP mapping for network connections extending beyond native IP capturing, and an AI/ML behavioral scoring model trained on process telemetry.
+\end{itemize}
+
+Overall, Malviz demonstrates that a compact, purpose-built monitoring tool grounded in behavioral analysis can effectively detect sophisticated attack patterns that signature-based systems miss, and that process-level telemetry combined with visual representation significantly lowers the barrier to understanding and responding to security incidents.

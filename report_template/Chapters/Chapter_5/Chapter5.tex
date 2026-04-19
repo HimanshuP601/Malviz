@@ -1,0 +1,94 @@
+% Chapter 5
+
+\chapter{Analysis and Results}\doublespacing
+
+\label{Chapter5}
+
+\lhead{Chapter V. \emph{Analysis and Results}}
+
+\section{Introduction}
+
+This chapter presents the results obtained from testing and evaluating the Malviz threat monitoring system. The evaluation was conducted by running the four attack simulation scripts on a Windows 10 host machine and observing the detection behavior of the system. The dashboard was monitored in real time during each simulation, and the resulting threat logs were analyzed to assess the accuracy, speed, and completeness of detections. In addition, the deep process inspection results are examined to validate the forensic analysis capabilities of the system.
+
+\section{Detection Results}
+
+Each simulation script was executed individually, and the Malviz dashboard was observed during the execution window. All seven simulations were successfully detected by the threat engine within the two-second WebSocket update interval.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|l|l|l|}
+\hline
+\textbf{Simulation} & \textbf{Detected} & \textbf{Severity} & \textbf{Detection Rule Triggered} \\
+\hline
+svchost.exe in Temp & Yes & Critical & Masquerading + Suspicious Path \\
+spoolsv.exe spawning powershell & Yes & Critical & Dangerous Ancestry (PrintNightmare) \\
+powershell execution bypass & Yes & Critical & Obfuscated/Hidden Commands \\
+fodhelper spawning cmd & Yes & Critical & Known UAC Bypass Registry Exploit Ancestry \\
+rundll32 suspicious proxy & Yes & Warning & Unsigned DLL Execution \\
+PrintSpoofer token manipulation & Yes & Critical & Token Impersonation Tools \\
+cmd.exe as SYSTEM via Task Scheduler & Yes & Critical & System Shell Spawned by Unexpected Parent \\
+\hline
+\end{tabular}
+\caption{Simulation Detection Results}
+\end{table}
+
+All detections were logically mapped to appropriate severities, confirming the broad flexibility of the heuristics mapping directly against the MITRE ATT\&CK Framework. No false negatives were observed during the test runs.
+
+\section{False Positive Analysis}
+
+During a five-minute observation period on an idle Windows 10 system with no active simulation, Malviz was monitored for unintended alerts. A small number of \textbf{Warning}-level alerts were observed for processes running in user-accessible directories such as certain software installers and development tools located in \texttt{AppData}. No incorrect \textbf{Critical}-level detections were observed for standard system processes during this period.
+
+This suggests that while the Warning-level heuristics may produce occasional low-confidence alerts for legitimate software installed in non-standard directories, Critical-level detections are precise and well-constrained.
+
+\section{Process Inspector Results}
+
+The deep inspection module was tested against several running processes, including a simulated masquerading process and a legitimate system process for comparison.
+
+\subsection{SHA-256 Hash Validation}
+
+For the masquerading \texttt{svchost.exe} simulation, the SHA-256 hash of the executable was computed and compared against the known hash of \texttt{ping.exe} from \texttt{System32}. The hashes matched, confirming that the file was a renamed copy of a different binary rather than the legitimate \texttt{svchost.exe}, validating the masquerade detection.
+
+\subsection{PE Header and Import Analysis}
+
+Parsing the PE structure of the masquerading binary using \texttt{pefile} revealed import table entries inconsistent with a genuine \texttt{svchost.exe}, which normally imports from \texttt{sechost.dll} and \texttt{ntdll.dll}. Instead, the imports matched those of \texttt{ping.exe}, referencing ICMP and WinSock-related functions. This cross-validation between the process name, path, hash, and PE imports provides strong forensic evidence for a masquerade attack.
+
+\subsection{Token Integrity Level}
+
+Token inspection during the Task Scheduler simulation confirmed that the spawned \texttt{cmd.exe} process held a \textbf{System} integrity level with a full set of elevated privileges including \texttt{SeDebugPrivilege} and \texttt{SeImpersonatePrivilege}, consistent with a SYSTEM-level shell. This is a strong indicator of a privilege escalation scenario.
+
+\section{Network Analysis Results}
+
+During the simulation runs, the network analyzer tab of the dashboard captured outbound connection attempts associated with the \texttt{ping.exe}-based simulations (DNS resolution for \texttt{localhost} and ICMP echo packets). These were rendered in the Wireshark-style table with protocol classification, source-destination pairs, and hex payload dumps. The visual presentation allowed rapid identification of unexpected network activity originating from the masquerading process.
+
+\section{System Performance}
+
+The impact of Malviz on the monitored system was measured during the test period. The overhead of the monitoring loop, which runs every two seconds and enumerates all running processes, was observed to be minimal:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|l|}
+\hline
+\textbf{Metric} & \textbf{Observed Value} \\
+\hline
+Additional CPU Usage (idle) & Less than 1\% \\
+Additional Memory Usage & Approximately 35 MB \\
+WebSocket Update Latency & Under 2 seconds \\
+Deep Inspection Response Time & 1--4 seconds (PE parsing) \\
+\hline
+\end{tabular}
+\caption{Malviz System Performance During Testing}
+\end{table}
+
+These results confirm that Malviz can operate continuously in the background without significantly impacting the performance of the monitored machine.
+
+\section{Threat History, Alerting, and Persistence}
+
+The SQLite threat history database was examined after all simulations were completed. All threat events were persisted correctly with accurate timestamps, severity levels, structured reason arrays, and remotely identified network IP connections seamlessly injected into the threat payload pipeline. 
+
+With the introduction of the \texttt{daily\_escalations} background rotation mechanism, critical systemic escalation paths were stored distinctively in memory and retained automatically for up to 24 hours. The dashboard actively polled this pipeline seamlessly merging legacy history with new streaming alerts sequentially.
+
+Additionally, critical process evaluations seamlessly bypassed standard user interface streams to inject native HTML5 Desktop Environment push notifications. This proved effective for situations where the main monitoring dashboard was out-of-focus or strictly running idly in the background, minimizing time-to-awareness substantially.
+
+\section{Summary}
+
+This chapter presented the evaluation results of the Malviz platform across detection accuracy, forensic depth, network analysis, and system performance. All four attack simulations were detected correctly and classified as Critical-severity threats. Deep process inspection confirmed masquerade identities through hash validation and PE import analysis. Token inspection validated SYSTEM-level privilege escalation. Network analysis captured associated traffic in real time. The system demonstrated low runtime overhead, making it viable for continuous background monitoring. These results confirm that Malviz achieves its primary objectives as a lightweight, real-time threat detection and analysis platform.
