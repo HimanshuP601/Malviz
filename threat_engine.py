@@ -200,6 +200,110 @@ def analyze_processes():
                 })
                 threat_score += 50
 
+        # 6. Token Impersonation / Theft (T1134)
+        if "authority\\system" in pinfo['username'].lower():
+            weak_parents = ["w3wp.exe", "tomcat.exe", "tomcat8.exe", "tomcat9.exe", "sqlservr.exe", "httpd.exe", "nginx.exe", "php-cgi.exe"]
+            if parent_name in weak_parents and name in ["cmd.exe", "powershell.exe", "pwsh.exe"]:
+                reasons.append({
+                    "title": "Token Impersonation / Theft Detected",
+                    "short": f"{parent_name} spawned {name} as SYSTEM",
+                    "detail": f"An unprivileged service process ({parent_name}) spawned a child process ({name}) with SYSTEM privileges. This strongly indicates the use of token impersonation techniques (e.g., SeImpersonatePrivilege abuse via Juicy Potato / PrintSpoofer).",
+                    "mitre": "T1134 (Access Token Manipulation)",
+                    "poc": "PrintSpoofer.exe -i -c cmd.exe"
+                })
+                threat_score += 90
+                escalations.append({
+                    "time": datetime.datetime.now().strftime("%H:%M:%S"),
+                    "source": parent_name,
+                    "target": name,
+                    "method": "Token Impersonation (SeImpersonatePrivelege)",
+                    "privilege": "Service Account ➔ SYSTEM"
+                })
+
+        # 7. Unquoted Service Path
+        if parent_name == "services.exe" and exe:
+            if exe.lower() == r"c:\program.exe" or (exe.lower().startswith(r"c:\program files") and not exe.lower().endswith(".exe") and " " in exe):
+                reasons.append({
+                    "title": "Unquoted Service Path Execution",
+                    "short": f"Suspicious service path: {exe}",
+                    "detail": "A process was executed as a service from a malformed path that occurs when a service path lacks quotes and contains spaces. This is a common local privilege escalation vector where adversaries plant a payload like C:\\Program.exe.",
+                    "mitre": "T1574.009 (Unquoted Service Paths)",
+                    "poc": "sc create VulnService binPath= \"C:\\Program Files\\My Service\\srv.exe\""
+                })
+                threat_score += 85
+
+        # 8. DLL Hijacking indicators
+        if name == "rundll32.exe" and cmdline:
+            for sdir in SUSPICIOUS_DIRS:
+                if sdir in cmdline.lower():
+                    reasons.append({
+                        "title": "Suspicious DLL Loading",
+                        "short": f"rundll32 executing from {sdir}",
+                        "detail": f"A system binary (rundll32) was observed loading a library from a commonly writable user directory: {sdir}. This may indicate a DLL proxying or search order hijacking attack.",
+                        "mitre": "T1574.001 (DLL Search Order Hijacking)",
+                        "poc": "rundll32.exe C:\\Temp\\evil.dll,EntryPoint"
+                    })
+                    threat_score += 75
+
+        # 9. Scheduled Task Abuse
+        if name == "schtasks.exe" and cmdline:
+            cmd_lower = cmdline.lower()
+            if "/create" in cmd_lower and ("/ru system" in cmd_lower or "/ru \"nt authority\\system\"" in cmd_lower):
+                reasons.append({
+                    "title": "Privileged Scheduled Task Creation",
+                    "short": "Task created to run as SYSTEM",
+                    "detail": "A scheduled task was created to run as the highly privileged SYSTEM account. Once an adversary gains initial elevated access, they use tasks to maintain privileged persistence.",
+                    "mitre": "T1053.005 (Scheduled Task)",
+                    "poc": "schtasks /create /tn \"Updater\" /tr \"C:\\Temp\\payload.exe\" /sc onstart /ru SYSTEM"
+                })
+                threat_score += 80
+
+        # 10. UAC Bypass patterns
+        uac_bypass_binaries = ["eventvwr.exe", "fodhelper.exe", "computerdefaults.exe", "sdclt.exe", "slui.exe"]
+        if name in ["cmd.exe", "powershell.exe", "pwsh.exe"] and parent_name in uac_bypass_binaries:
+            reasons.append({
+                "title": "UAC Bypass Execution",
+                "short": f"{name} spawned by UAC auto-elevated binary ({parent_name})",
+                "detail": f"An administrative shell was spawned by {parent_name}. This binary is known to auto-elevate without prompting the user, and adversaries frequently hijack its execution flow (via registry keys like HKCU\\Software\\Classes) to bypass UAC.",
+                "mitre": "T1548.002 (Bypass User Account Control)",
+                "poc": f"reg add HKCU\\Software\\Classes\\mscfile\\shell\\open\\command /d cmd.exe /f & {parent_name}"
+            })
+            threat_score += 85
+            escalations.append({
+                "time": datetime.datetime.now().strftime("%H:%M:%S"),
+                "source": parent_name,
+                "target": name,
+                "method": "UAC Bypass (COM Hijack)",
+                "privilege": "Limited Admin ➔ High IL Admin"
+            })
+
+        # 11. Named Pipe / Impersonation Tools
+        impersonation_tools = ["printspoofer", "roguepotato", "juicypotato", "sweetpotato", "incognito"]
+        if any(tool in name for tool in impersonation_tools) or (cmdline and any(tool in cmdline.lower() for tool in impersonation_tools)):
+            reasons.append({
+                "title": "Known Impersonation Tool Expected",
+                "short": f"Impersonation tool '{name}' detected",
+                "detail": "Execution of a known privilege escalation tool designed to steal tokens or abuse named pipes (e.g., PrintSpoofer, RoguePotato). These tools typically trick a SYSTEM process into connecting to a malicious named pipe.",
+                "mitre": "T1134 (Access Token Manipulation)",
+                "poc": f"{name} -i -c cmd.exe"
+            })
+            threat_score += 95
+
+        # 12. Kernel Exploitation / Direct Integrity Elevation
+        if "authority\\system" in pinfo['username'].lower():
+            if ppid in proc_map:
+                parent_user = proc_map[ppid].get('username', "").lower()
+                if parent_user and "authority\\system" not in parent_user:
+                    if name not in ["consent.exe", "winlogon.exe"] and parent_name not in ["services.exe", "svchost.exe", "smss.exe", "wininit.exe"]:
+                        reasons.append({
+                            "title": "Anomalous Direct Elevation (Possible Kernel Exploit)",
+                            "short": f"Direct privilege boundary crossed to SYSTEM from {parent_user}",
+                            "detail": f"Process {name} started as SYSTEM, but its parent ({parent_name}) is running as {parent_user}. Directly crossing privilege boundaries outside standard Windows elevation mechanisms (like consent.exe) typically indicates a successful Kernel exploit or token stealing operation.",
+                            "mitre": "T1068 (Exploitation for Privilege Escalation)",
+                            "poc": "Execution of local kernel exploit (e.g. CVE-2023-XXXX) to steal system tokens."
+                        })
+                        threat_score += 95
+
         # Assign bounded Threat Score and compute traditional string severity
         threat_score = min(threat_score, 100)
         severity = "Normal"
@@ -347,18 +451,32 @@ def get_process_simulation_data(pid: int):
         syscalls = []
         for _ in range(random.randint(15, 30)):
             ts = datetime.datetime.now().strftime("%H:%M:%S.%f")[:-3]
-            api = random.choice([
-                "NtQuerySystemInformation", 
-                "NtAllocateVirtualMemory", 
-                "NtProtectVirtualMemory", 
-                "NtReadFile", 
-                "NtWriteFile", 
-                "NtCreateUserProcess", 
-                "NtDelayExecution",
-                "NtQueryInformationProcess",
-                "NtDeviceIoControlFile",
-                "LdrLoadDll"
-            ])
+            # Standard simulation, but inject Token manipulation API if process looks like a spoofer
+            impersonation_tools = ["printspoofer", "roguepotato", "juicypotato", "sweetpotato", "incognito"]
+            tool_name = sim_data["name"].lower()
+            if any(tool in tool_name for tool in impersonation_tools) or "spoolsv" in tool_name:
+                api = random.choice([
+                    "SeImpersonatePrivilege",
+                    "DuplicateTokenEx",
+                    "CreateProcessWithTokenW",
+                    "NtOpenProcessToken",
+                    "NtSetInformationThread",
+                    "CreateNamedPipeW",
+                    "ConnectNamedPipe"
+                ])
+            else:
+                api = random.choice([
+                    "NtQuerySystemInformation", 
+                    "NtAllocateVirtualMemory", 
+                    "NtProtectVirtualMemory", 
+                    "NtReadFile", 
+                    "NtWriteFile", 
+                    "NtCreateUserProcess", 
+                    "NtDelayExecution",
+                    "NtQueryInformationProcess",
+                    "NtDeviceIoControlFile",
+                    "LdrLoadDll"
+                ])
             status = "SUCCESS"
             if random.random() > 0.9:
                 status = random.choice(["STATUS_ACCESS_DENIED", "STATUS_INFO_LENGTH_MISMATCH"])
