@@ -324,7 +324,8 @@ def analyze_processes():
             "parent_name": pinfo.get('parent_name', 'Unknown'),
             "cmdline": cmdline,
             "threat_severity": severity,
-            "threat_score": threat_score
+            "threat_score": threat_score,
+            "ip": "-"
         })
         
         # Extract network connections for widget and threats
@@ -337,6 +338,7 @@ def analyze_processes():
                     my_conns.append(f"{c.laddr.ip}:{c.laddr.port} -> {c.raddr.ip}:{c.raddr.port}")
                     
                     if c.raddr.ip not in ["127.0.0.1", "0.0.0.0", "::1"]:
+                        processes[-1]["ip"] = c.raddr.ip
                         countries = ["US", "RU", "CN", "NL", "DE", "BR", "IN", "KR"]
                         is_suspicious = c.raddr.port in [4444, 1337, 8080, 2222, 5555, 9999, 13337]
                         active_connections.append({

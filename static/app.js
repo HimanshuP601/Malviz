@@ -99,6 +99,8 @@ function showSection(id) {
 const ws = new WebSocket(`ws://${window.location.host}/ws`);
 let lastProcessList = [];
 
+let notifiedThreats = new Set();
+
 ws.onmessage = function(event) {
     const data = JSON.parse(event.data);
     updateMetrics(data.system, data.processes.length);
@@ -107,6 +109,24 @@ ws.onmessage = function(event) {
     updateNewWidgets(data.escalations, data.active_connections);
     lastProcessList = data.processes;
     renderProcessTable(data.processes);
+    
+    // Desktop Notification Logic
+    let criticals = data.threats.filter(t => t.threat_severity === 'Critical');
+    if (criticals.length > 0) {
+        // If not looking at dashboard actively...
+        if (!document.getElementById('dashboard').classList.contains('active')) {
+            criticals.forEach(c => {
+                if (!notifiedThreats.has(c.pid)) {
+                    notifiedThreats.add(c.pid);
+                    if ("Notification" in window && Notification.permission === "granted") {
+                        new Notification("🚨 CRITICAL THREAT DETECTED", {
+                            body: `Process ${c.name} (PID: ${c.pid}) flagged as Critical! Check Malviz Dashboard.`,
+                        });
+                    }
+                }
+            });
+        }
+    }
 };
 
 // Update Metrics and Charts
@@ -181,37 +201,53 @@ function updateTopMemoryProcesses(processes) {
     });
 }
 
-function updateNewWidgets(escalations, active_connections) {
+let all_escalations = [];
+
+async function loadInitialEscalations() {
+    try {
+        const res = await fetch('/api/escalations');
+        all_escalations = await res.json();
+        renderEscalations(all_escalations);
+    } catch(e) { console.error('Failed to load escalations:', e); }
+}
+loadInitialEscalations();
+
+function renderEscalations(escalationsArr) {
     const escList = document.getElementById('escalations-list');
-    if (escalations && escalations.length > 0) {
-        escList.innerHTML = '';
-        // Group by source/target to prevent spamming the identical ones every 2 seconds
-        // Only keep unique for demo
-        const uniqueEscs = [];
-        const seen = new Set();
-        escalations.forEach(e => {
-            let key = e.source + e.target;
-            if(!seen.has(key)){
-                seen.add(key);
-                uniqueEscs.push(e);
+    escList.innerHTML = '';
+    if (!escalationsArr || escalationsArr.length === 0) {
+        escList.innerHTML = '<li style="text-align:center; padding-top:40px; color:#6b7280;">No escalation attempts detected.</li>';
+        return;
+    }
+    escalationsArr.forEach(e => {
+        const li = document.createElement('li');
+        li.style.marginBottom = '12px';
+        li.style.borderBottom = '1px solid rgba(220, 38, 38, 0.2)';
+        li.style.paddingBottom = '8px';
+        li.innerHTML = `
+            <div style="display:flex; justify-content:space-between; margin-bottom: 4px;">
+                <strong style="color:var(--text-main); font-family:var(--font-main);"><span style="color:var(--accent-red);">${e.source}</span> ➔ ${e.target}</strong>
+                <span style="color:#8e99a8; font-size: 0.85em;">${e.time}</span>
+            </div>
+            <div style="color: var(--accent-orange); margin-bottom: 4px;"><strong>Method:</strong> ${e.method}</div>
+            <div style="color: #a5b4fc;"><strong>Shift:</strong> ${e.privilege}</div>
+        `;
+        escList.appendChild(li);
+    });
+}
+
+function updateNewWidgets(new_escalations, active_connections) {
+    if (new_escalations && new_escalations.length > 0) {
+        let added = false;
+        new_escalations.forEach(e => {
+            // Deduplicate against existing 24h history
+            let exists = all_escalations.find(x => x.source === e.source && x.target === e.target && x.method === e.method);
+            if (!exists) {
+                all_escalations.unshift(e); // push to top explicitly
+                added = true;
             }
         });
-        
-        uniqueEscs.reverse().forEach(e => {
-            const li = document.createElement('li');
-            li.style.marginBottom = '12px';
-            li.style.borderBottom = '1px solid rgba(220, 38, 38, 0.2)';
-            li.style.paddingBottom = '8px';
-            li.innerHTML = `
-                <div style="display:flex; justify-content:space-between; margin-bottom: 4px;">
-                    <strong style="color:var(--text-main); font-family:var(--font-main);"><span style="color:var(--accent-red);">${e.source}</span> ➔ ${e.target}</strong>
-                    <span style="color:#8e99a8; font-size: 0.85em;">${e.time}</span>
-                </div>
-                <div style="color: var(--accent-orange); margin-bottom: 4px;"><strong>Method:</strong> ${e.method}</div>
-                <div style="color: #a5b4fc;"><strong>Shift:</strong> ${e.privilege}</div>
-            `;
-            escList.appendChild(li);
-        });
+        if(added) renderEscalations(all_escalations);
     }
 
     const connList = document.getElementById('active-conn-list');
@@ -283,6 +319,7 @@ function renderProcessTable(processes) {
             <td><strong>${p.name}</strong></td>
             <td>${p.username}</td>
             <td class="code-font" title="${p.path}">${pathDisp}</td>
+            <td class="code-font" style="color:var(--accent-blue);">${p.ip || '-'}</td>
             <td style="min-width: 150px;">${scoreHtml}</td>
             <td><button class="btn btn-small" onclick='showDetails(${JSON.stringify(p).replace(/'/g, "&apos;")})'>Inspect</button></td>
         `;

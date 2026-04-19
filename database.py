@@ -23,6 +23,16 @@ def init_db():
             network_connections TEXT
         )
     """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS daily_escalations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source TEXT,
+            target TEXT,
+            method TEXT,
+            privilege TEXT,
+            timestamp TEXT
+        )
+    """)
     conn.commit()
     conn.close()
 
@@ -61,6 +71,52 @@ def get_history():
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
+def log_escalation(escalation_data):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    timestamp = datetime.datetime.now().isoformat()
+    
+    # Insert new escalation
+    cursor.execute("""
+        INSERT INTO daily_escalations (source, target, method, privilege, timestamp)
+        VALUES (?, ?, ?, ?, ?)
+    """, (
+        escalation_data.get('source'),
+        escalation_data.get('target'),
+        escalation_data.get('method'),
+        escalation_data.get('privilege'),
+        timestamp
+    ))
+    
+    # Delete old escalations (older than 24 hours)
+    one_day_ago = (datetime.datetime.now() - datetime.timedelta(days=1)).isoformat()
+    cursor.execute("DELETE FROM daily_escalations WHERE timestamp < ?", (one_day_ago,))
+    conn.commit()
+    conn.close()
+
+def get_recent_escalations():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    # Ensure we only fetch last 24 hours, even if deletion somehow failed
+    one_day_ago = (datetime.datetime.now() - datetime.timedelta(days=1)).isoformat()
+    cursor.execute("SELECT * FROM daily_escalations WHERE timestamp >= ? ORDER BY timestamp DESC", (one_day_ago,))
+    rows = cursor.fetchall()
+    conn.close()
+    
+    # Format backward to match frontend expectations
+    results = []
+    for row in rows:
+        d = dict(row)
+        # Parse timestamp back to HH:MM:SS for the UI
+        try:
+            d['time'] = datetime.datetime.fromisoformat(d['timestamp']).strftime("%H:%M:%S")
+        except:
+            d['time'] = d['timestamp']
+        results.append(d)
+        
+    return results
 
 if __name__ == '__main__':
     init_db()

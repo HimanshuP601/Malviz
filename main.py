@@ -7,7 +7,7 @@ import uvicorn
 import os
 
 from threat_engine import analyze_processes, get_all_network_packets, get_process_simulation_data
-from database import init_db, log_threat, get_history
+from database import init_db, log_threat, get_history, log_escalation, get_recent_escalations
 from inspector import analyze_process_deep, extract_strings, generate_minidump
 
 app = FastAPI(title="Malviz")
@@ -26,6 +26,10 @@ async def read_index():
 @app.get("/api/history")
 async def read_history():
     return get_history()
+
+@app.get("/api/escalations")
+async def read_escalations():
+    return get_recent_escalations()
 
 @app.get("/api/inspect/{pid}")
 async def inspect_pid(pid: int):
@@ -70,6 +74,7 @@ async def dump_process_memory(pid: int):
 
 # In-memory track of logged threat PIDs to avoid spamming the DB
 logged_threats = set()
+logged_escalations = set()
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -84,6 +89,14 @@ async def websocket_endpoint(websocket: WebSocket):
                 if t['pid'] not in logged_threats:
                     log_threat(t)
                     logged_threats.add(t['pid'])
+            
+            # Log new escalations to DB (1 day tracking)
+            for e in escalations:
+                # Basic deduplication using source, target, method
+                key = f"{e['source']}_{e['target']}_{e['method']}"
+                if key not in logged_escalations:
+                    log_escalation(e)
+                    logged_escalations.add(key)
             
             payload = {
                 "system": sys_metrics,
